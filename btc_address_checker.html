@@ -1,0 +1,73 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>BTC Address Equivalence Checker</title>
+<style>
+  body { font-family: system-ui, sans-serif; max-width: 600px; margin: 2rem auto; }
+  input, button { width: 100%; padding: .5rem; margin-top: .5rem; font-size: 1rem; }
+  pre { background:#f6f6f6; padding:1rem; border-radius:8px; }
+  .ok { color:green; }
+  .no { color:red; }
+</style>
+</head>
+<body>
+<h2>Bitcoin Mainnet ↔ Testnet Address Checker</h2>
+
+<label>Mainnet or Testnet Address A:</label>
+<input id="addrA" placeholder="bc1... or 1... or m...">
+
+<label>Address B:</label>
+<input id="addrB" placeholder="tb1... or m... or 1...">
+
+<button id="btn">Compare</button>
+
+<pre id="out"></pre>
+
+<script type="module">
+import { bech32 } from 'https://cdn.jsdelivr.net/npm/@scure/base@1.1.5/+esm';
+import bs58check from 'https://cdn.jsdelivr.net/npm/bs58check@2.1.2/+esm';
+
+function decodeAddress(addr) {
+  addr = addr.trim();
+  if (addr.toLowerCase().startsWith('bc1') || addr.toLowerCase().startsWith('tb1')) {
+    const { prefix, words } = bech32.decode(addr);
+    const version = words[0];
+    const program = bech32.fromWords(words.slice(1));
+    return { type: 'bech32', hrp: prefix, version, payload: bytesToHex(program) };
+  } else {
+    const buf = bs58check.decode(addr);
+    const version = buf[0];
+    const payload = buf.slice(1);
+    return { type: 'base58', version, payload: bytesToHex(payload) };
+  }
+}
+
+function bytesToHex(b){return Array.from(b, x=>x.toString(16).padStart(2,'0')).join('');}
+
+function compare(a,b){
+  try {
+    const A = decodeAddress(a), B = decodeAddress(b);
+    const eq = A.payload === B.payload && A.type === B.type;
+    return {A,B,equivalent:eq};
+  } catch(e){ return {error:e.message}; }
+}
+
+document.getElementById('btn').onclick = () => {
+  const a = document.getElementById('addrA').value;
+  const b = document.getElementById('addrB').value;
+  const r = compare(a,b);
+  const out = document.getElementById('out');
+  if (r.error) { out.innerHTML = `<span class=no>Error:</span> ${r.error}`; return; }
+  out.innerHTML = `
+A → ${JSON.stringify(r.A, null, 2)}
+
+B → ${JSON.stringify(r.B, null, 2)}
+
+Result: <strong class="${r.equivalent?'ok':'no'}">
+${r.equivalent ? 'Equivalent ✅' : 'Different ❌'}
+</strong>`;
+};
+</script>
+</body>
+</html>
